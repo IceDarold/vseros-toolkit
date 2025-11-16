@@ -262,4 +262,3 @@ class TokenChunker:
 
 char_chunker = CharChunker()
 paragraph_chunker = ParagraphChunker()
-token_chunker = TokenChunker()
