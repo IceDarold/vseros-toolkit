@@ -19,6 +19,8 @@ dependencies = [
     "rank-bm25",
     "sentence-transformers",
     "faiss-cpu",
+    "pyarrow",
+    "jsonschema",
 ]
 
 [project.optional-dependencies]
@@ -43,4 +45,6 @@ include = [
     "rag.*",
     "tabular",
     "tabular.*",
+    "recsys",
+    "recsys.*",
 ]
