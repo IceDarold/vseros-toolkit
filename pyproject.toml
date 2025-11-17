@@ -37,6 +37,10 @@ where = ["."]
 
 # Явно говорим: пакеты вот эти (и их подпакеты)
 include = [
+    "common",
+    "common.*",
     "rag",
-    "rag.*"
+    "rag.*",
+    "tabular",
+    "tabular.*",
 ]
