@@ -10,6 +10,12 @@ from scipy.sparse import csr_matrix
 
 from .embeddings import EmbeddingCache, encode_docs_with_cache
 
+# tqdm — аккуратно, чтобы не падать, если его нет
+try:
+    from tqdm.auto import tqdm
+except ImportError:  # pragma: no cover
+    tqdm = None
+
 
 # =========================
 # BM25 INDEX
@@ -78,6 +84,8 @@ def build_bm25_index(
     k1: float = 1.5,
     b: float = 0.75,
     meta: Optional[Sequence[Optional[Dict[str, Any]]]] = None,
+    verbose: bool = False,
+    show_progress: bool = False,
 ) -> BM25Index:
     """
     Строит BM25-индекс по коллекции текстов.
@@ -92,6 +100,10 @@ def build_bm25_index(
         Параметры BM25.
     meta:
         Необязательный список метадаты длины len(docs). Каждый элемент либо dict, либо None.
+    verbose:
+        Если True — печатает краткие логи (размеры, статистики).
+    show_progress:
+        Если True и установлен tqdm — показывает прогресс по токенизации и сборке tf/df.
 
     Возвращает
     ----------
@@ -103,8 +115,16 @@ def build_bm25_index(
     if tokenizer is None:
         tokenizer = _default_tokenizer
 
+    if verbose:
+        print(
+            f"[build_bm25_index] n_docs={n_docs}, k1={k1}, b={b}, "
+            f"meta_present={meta is not None}"
+        )
+
     if n_docs == 0:
         # Пустой индекс — нормальный кейс
+        if verbose:
+            print("[build_bm25_index] пустой список документов, возвращаю пустой индекс.")
         empty_arr = np.zeros((0,), dtype="float32")
         empty_mat = csr_matrix((0, 0), dtype="float32")
         return BM25Index(
@@ -121,7 +141,26 @@ def build_bm25_index(
         )
 
     # 1. Токенизация
-    tokenized: List[List[str]] = [tokenizer(text) for text in docs_list]
+    tokenized: List[List[str]] = []
+
+    iter_range = range(n_docs)
+    if show_progress and tqdm is not None:
+        iter_range = tqdm(iter_range, desc="BM25: tokenizing docs", unit="doc")
+    elif show_progress and tqdm is None and verbose:
+        print("[build_bm25_index] tqdm не установлен, прогресс-бар отключён.")
+
+    for i in iter_range:
+        text = docs_list[i]
+        tokens = tokenizer(text)
+        tokenized.append(tokens)
+
+    if verbose:
+        total_tokens = sum(len(toks) for toks in tokenized)
+        avg_tokens = total_tokens / float(n_docs) if n_docs > 0 else 0.0
+        print(
+            f"[build_bm25_index] токенизация завершена: "
+            f"total_tokens={total_tokens}, avg_tokens_per_doc={avg_tokens:.2f}"
+        )
 
     # 2. Словарь token -> term_id
     vocab: Dict[str, int] = {}
@@ -132,9 +171,19 @@ def build_bm25_index(
 
     vocab_size = len(vocab)
 
+    if verbose:
+        print(f"[build_bm25_index] vocab_size={vocab_size}")
+
     # 3. Длины документов
     doc_len = np.array([len(tokens) for tokens in tokenized], dtype="float32")
     avg_doc_len = float(doc_len.mean()) if n_docs > 0 else 0.0
+
+    if verbose:
+        print(
+            f"[build_bm25_index] avg_doc_len={avg_doc_len:.2f}, "
+            f"min_len={float(doc_len.min()) if n_docs > 0 else 0.0}, "
+            f"max_len={float(doc_len.max()) if n_docs > 0 else 0.0}"
+        )
 
     # 4. Частоты и document frequency
     rows: List[int] = []
@@ -143,7 +192,12 @@ def build_bm25_index(
 
     df = np.zeros(vocab_size, dtype="int32")  # document frequency per term
 
-    for doc_id, tokens in enumerate(tokenized):
+    iter_docs = range(n_docs)
+    if show_progress and tqdm is not None:
+        iter_docs = tqdm(iter_docs, desc="BM25: building tf/df", unit="doc")
+
+    for doc_id in iter_docs:
+        tokens = tokenized[doc_id]
         if not tokens:
             continue
 
@@ -169,6 +223,13 @@ def build_bm25_index(
         dtype="float32",
     )
 
+    if verbose:
+        nnz = term_freqs.nnz
+        print(
+            f"[build_bm25_index] term_freqs shape={term_freqs.shape}, nnz={nnz}, "
+            f"avg_terms_per_doc={nnz / float(n_docs) if n_docs > 0 else 0.0:.2f}"
+        )
+
     # 5. IDF (классическая формула BM25)
     df_float = df.astype("float32")
     # добавляем 0.5 для устойчивости при df=0/df=N
@@ -186,8 +247,15 @@ def build_bm25_index(
             )
         for m in meta_seq:
             meta_list.append(dict(m) if m is not None else {})
+        if verbose:
+            print(f"[build_bm25_index] meta прикреплена к {len(meta_list)} документам.")
     else:
         meta_list = None
+        if verbose:
+            print("[build_bm25_index] meta не передана (None).")
+
+    if verbose:
+        print("[build_bm25_index] BM25Index готов.")
 
     return BM25Index(
         vocab=vocab,
@@ -254,6 +322,8 @@ def build_dense_index(
     metric: str = "ip",
     cache: Optional[EmbeddingCache] = None,
     model_id: Optional[str] = None,
+    verbose: bool = False,
+    show_progress: bool = False,
 ) -> DenseIndex:
     """
     Строит dense-индекс поверх эмбеддингов документов/чанков.
@@ -276,7 +346,11 @@ def build_dense_index(
         EmbeddingCache, если хочешь переиспользовать эмбеддинги между индексами/запросами.
     model_id:
         Идентификатор модели эмбеддингов (любая строка, но должна быть консистентной).
-        Если None — encode_docs_with_cache просто не будет использовать кэш.
+        Если None — encode_docs_with_cache просто не будет использовать кэш (использует "default").
+    verbose:
+        Если True — печатает логи о размерностях, использовании кэша и т.п.
+    show_progress:
+        Если True — прокидывает флаг в encode_docs_with_cache, чтобы видеть tqdm по батчам.
 
     Возвращает
     ----------
@@ -285,7 +359,16 @@ def build_dense_index(
     docs_list = [d if d is not None else "" for d in docs]
     n_docs = len(docs_list)
 
+    if verbose:
+        print(
+            f"[build_dense_index] n_docs={n_docs}, batch_size={batch_size}, "
+            f"normalize={normalize}, metric={metric}, model_id={model_id!r}, "
+            f"use_cache={cache is not None}"
+        )
+
     if n_docs == 0:
+        if verbose:
+            print("[build_dense_index] пустой список документов, возвращаю пустой DenseIndex.")
         empty_emb = np.zeros((0, 0), dtype="float32")
         return DenseIndex(
             embeddings=empty_emb,
@@ -296,14 +379,18 @@ def build_dense_index(
             normalize=normalize,
         )
 
-    # Эмбеддинги с кэшом
+    eff_model_id = model_id if model_id is not None else "default"
+
+    # Эмбеддинги с кэшом (или без него, если cache=None)
     emb = encode_docs_with_cache(
         texts=docs_list,
         emb_model=emb_model,
-        model_id=model_id if model_id is not None else "default",
+        model_id=eff_model_id,
         cache=cache,
         batch_size=batch_size,
         normalize=normalize,
+        show_progress=show_progress,
+        verbose=verbose,
     )
     # emb уже float32 и 2D
 
@@ -312,6 +399,9 @@ def build_dense_index(
             f"build_dense_index: количество эмбеддингов ({emb.shape[0]}) "
             f"не совпадает с количеством документов ({n_docs})"
         )
+
+    if verbose:
+        print(f"[build_dense_index] embeddings shape={emb.shape}")
 
     # meta-выравнивание
     meta_list: Optional[List[Dict[str, Any]]]
@@ -325,8 +415,15 @@ def build_dense_index(
         meta_list = []
         for m in meta_seq:
             meta_list.append(dict(m) if m is not None else {})
+        if verbose:
+            print(f"[build_dense_index] meta прикреплена к {len(meta_list)} документам.")
     else:
         meta_list = None
+        if verbose:
+            print("[build_dense_index] meta не передана (None).")
+
+    if verbose:
+        print("[build_dense_index] DenseIndex готов.")
 
     return DenseIndex(
         embeddings=emb,
