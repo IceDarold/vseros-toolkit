@@ -24,6 +24,8 @@ def _fingerprint() -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
 
 
+def _meters_to_radians(distance_m: float) -> float:
+    return distance_m / 6_371_000.0
 def _to_radians(df: pd.DataFrame, lat_col: str, lon_col: str) -> np.ndarray:
     lat_rad = np.radians(df[lat_col].to_numpy())
     lon_rad = np.radians(df[lon_col].to_numpy())

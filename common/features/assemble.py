@@ -6,6 +6,18 @@ from .store import FeatureStore
 
 
 def make_dense(store: FeatureStore, include):
+    """Собирает плотные блоки в единый DataFrame.
+
+    Пример с изображениями::
+        from common.features import assemble, store
+        from common.features.img_index import build_from_dir
+        from common.features.img_embed import build as img_embed
+
+        id2imgs = build_from_dir("data/images", ids=[...], pattern="{id}/*.jpg", max_per_id=4)
+        fs = store.FeatureStore()
+        fs.add(img_embed(train_df, test_df, id_col="id", id_to_images=id2imgs))
+        Xtr, Xte, catalog = assemble.make_dense(fs, include=fs.list())
+    """
     dfs_tr, dfs_te, parts = [], [], []
     for name in include:
         pkg = store.get(name)

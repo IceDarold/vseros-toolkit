@@ -2,7 +2,7 @@ import hashlib
 import math
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
@@ -16,6 +16,25 @@ def _fingerprint() -> str:
     return hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
 
 
+def _to_bins(values: pd.Series, step_deg: float) -> pd.Series:
+    bins = np.floor(values / step_deg)
+    bins = pd.Series(bins, index=values.index)
+    return bins.fillna(-1).astype(int)
+
+
+def _meters_to_degrees(step_m: float, lat_ref: float) -> Tuple[float, float]:
+    lat_deg = step_m / 111_000
+    lon_deg = step_m / (111_000 * max(math.cos(math.radians(lat_ref)), 1e-6))
+    return lat_deg, lon_deg
+
+
+def _select_columns(df: pd.DataFrame, cols: Optional[Sequence[str]]) -> Tuple[str, str]:
+    if cols is None:
+        raise ValueError("Latitude and longitude columns must be provided explicitly")
+    lat_col, lon_col = cols
+    if lat_col not in df.columns or lon_col not in df.columns:
+        raise ValueError("lat_col or lon_col not present in DataFrame")
+    return lat_col, lon_col
 def _meters_to_degrees_lat(meters: float) -> float:
     return meters / 111_320.0
 
