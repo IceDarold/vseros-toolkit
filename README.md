@@ -8,10 +8,14 @@ from common.models import gbdt, linear, blend, calibration, thresholds, eval as 
 # 1) тренируем двух кандидатов
 run_tab = gbdt.train_cv(X_dense_tr, y, X_dense_te, folds,
                         task="binary", lib="lightgbm",
-                        params={"n_estimators":500,"max_depth":8,"learning_rate":0.05})
+                        params={"n_estimators":500,"max_depth":8,"learning_rate":0.05},
+                        show_progress=True,
+                        verbose=False)
 
 run_txt = linear.train_cv(X_sparse_tr, y, X_sparse_te, folds,
-                          task="binary", algo="lr", params={"C":2.0,"max_iter":200})
+                          task="binary", algo="lr", params={"C":2.0,"max_iter":200},
+                          show_progress=True,
+                          verbose=False)
 
 # 2) выбираем бленд
 scorer = ME.get_scorer("binary","roc_auc")

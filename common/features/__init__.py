@@ -10,6 +10,8 @@ from . import (
     img_stats,
     num_basic,
     text_tfidf,
+    time_agg,
+    crosses,
 )
 from .types import FeaturePackage, Kind
 
@@ -26,6 +28,8 @@ __all__ = [
     "img_embed",
     "img_stats",
     "text_tfidf",
+    "time_agg",
+    "crosses",
     "make_dense",
     "make_sparse",
 ]

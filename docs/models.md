@@ -100,6 +100,8 @@ run = gbdt.train_cv(
     n_jobs=8,
     save=True,
     resume=True,
+    show_progress=True,
+    verbose=False,
 )
 print(run.cv_mean, run.cv_std, run.artifacts_path)
 ```
@@ -113,6 +115,7 @@ print(run.cv_mean, run.cv_std, run.artifacts_path)
   multiclass (one-hot, если библиотека возвращает метки).
 * После каждого фолда модель сохраняется в `model_fold_k.<ext>` (`.lgb`, `.cbm`, `.xgb` или `.joblib`).
 * При `resume=True` уже обученные фолды пропускаются (по наличию файла модели).
+* `show_progress=True` включает tqdm прогресс-бар по фолдам, `verbose=True` выводит подробные логи и verbose-режим библиотек.
 * В `manifest` пишутся параметры, метрика, число фолдов и сводные значения CV.
 
 ### Минимальный пример без test-матрицы
@@ -139,6 +142,8 @@ run_tfidf = linear.train_cv(
     task="binary",
     params={"C": 2.0, "max_iter": 200, "n_jobs": 8},
     seed=13,
+    show_progress=True,
+    verbose=False,
 )
 ```
 
@@ -150,6 +155,7 @@ run_tfidf = linear.train_cv(
 * Артефакты фолдов сохраняются как `model_fold_k.joblib`; доступен `resume=True`.
 * Метрики выбираются через `params["metric"]` или дефолты: ROC-AUC для binary, F1-macro для multiclass,
   F1-micro для multilabel, RMSE для регрессии.
+* `show_progress=True` включает tqdm прогресс-бар по фолдам, `verbose=True` выводит подробные шаги и информацию о сохранении.
 
 ### Пример для multilabel
 

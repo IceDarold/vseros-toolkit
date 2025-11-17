@@ -122,10 +122,15 @@ def train_cv(
     n_jobs: int = 4,
     save: bool = True,
     resume: bool = True,
+    show_progress: bool = False,
+    verbose: bool = False,
 ) -> ModelRun:
     """
     Обучает по фолдам, после КАЖДОГО фолда сохраняет модель в artifacts/models/<run_id>/.
     Возвращает ModelRun с oof/test, fold_scores и manifest.
+
+    show_progress управляет выводом прогресс-бара по фолдам, verbose — подробными логами
+    и verbose-режимом библиотек.
     """
 
     task = task.lower()
@@ -151,15 +156,43 @@ def train_cv(
         "folds": len(folds),
     }
 
-    for k, (tr_idx, val_idx) in enumerate(folds):
+    total_folds = len(folds)
+    if verbose:
+        print(
+            f"[gbdt.train_cv] lib={lib}, task={task}, run_id={run_id}, "
+            f"folds={total_folds}, resume={resume}"
+        )
+        train_shape = getattr(X_train, "shape", None)
+        test_shape = getattr(X_test, "shape", None)
+        print(f"[gbdt.train_cv] train_shape={train_shape}, test_shape={test_shape}")
+        print(f"[gbdt.train_cv] params={params}")
+
+    fold_iterable = folds
+    if show_progress:
+        try:
+            from tqdm.auto import tqdm  # type: ignore
+
+            fold_iterable = tqdm(folds, total=total_folds, desc=f"{lib} CV")
+        except ImportError:
+            if verbose:
+                print("[gbdt.train_cv] tqdm is not installed; progress bar disabled")
+
+    for k, (tr_idx, val_idx) in enumerate(fold_iterable):
         model = None
         fold_ext = ".joblib"
         try:
+            if verbose:
+                print(
+                    f"[gbdt.train_cv] Fold {k + 1}/{total_folds}: "
+                    f"train={len(tr_idx)}, val={len(val_idx)}"
+                )
             if lib == "lightgbm":
                 lgb, lgb_params = _setup_lightgbm(task, params, seed, n_jobs, num_class)
                 fold_ext = ".lgb"
                 model_path = A.fold_path(run_dir, k, fold_ext)
                 if resume and k in existing and model_path.exists():
+                    if verbose:
+                        print(f"[gbdt.train_cv] loading LightGBM fold from {model_path}")
                     model = lgb.Booster(model_file=str(model_path))
                 else:
                     train_set = lgb.Dataset(X_train[tr_idx], label=y[tr_idx], weight=None if sample_weight is None else sample_weight[tr_idx])
@@ -169,7 +202,7 @@ def train_cv(
                         train_set,
                         valid_sets=[val_set],
                         num_boost_round=lgb_params.get("num_boost_round", lgb_params.get("n_estimators", 200)),
-                        verbose_eval=False,
+                        verbose_eval=verbose,
                     )
                     if save:
                         model.save_model(str(model_path))
@@ -179,6 +212,8 @@ def train_cv(
                 fold_ext = ".cbm"
                 model_path = A.fold_path(run_dir, k, fold_ext)
                 if resume and k in existing and model_path.exists():
+                    if verbose:
+                        print(f"[gbdt.train_cv] loading CatBoost fold from {model_path}")
                     model = model_cls()
                     model.load_model(str(model_path))
                 else:
@@ -187,7 +222,7 @@ def train_cv(
                         "X": X_train[tr_idx],
                         "y": y[tr_idx],
                         "eval_set": (X_train[val_idx], y[val_idx]),
-                        "verbose": False,
+                        "verbose": verbose,
                     }
                     if class_weight is not None:
                         fit_params["class_weights"] = class_weight
@@ -200,6 +235,8 @@ def train_cv(
                 fold_ext = ".xgb"
                 model_path = A.fold_path(run_dir, k, fold_ext)
                 if resume and k in existing and model_path.exists():
+                    if verbose:
+                        print(f"[gbdt.train_cv] loading XGBoost fold from {model_path}")
                     model = model_cls()
                     model.load_model(str(model_path))
                 else:
@@ -208,7 +245,7 @@ def train_cv(
                         X_train[tr_idx],
                         y[tr_idx],
                         eval_set=[(X_train[val_idx], y[val_idx])],
-                        verbose=False,
+                        verbose=verbose,
                         sample_weight=None if sample_weight is None else sample_weight[tr_idx],
                     )
                     if save:
@@ -218,6 +255,9 @@ def train_cv(
         except ImportError as e:
             warnings.warn(str(e))
             raise
+
+        if verbose:
+            print(f"[gbdt.train_cv] Fold {k + 1}/{total_folds} finished")
 
         # predictions
         val_pred = _predict_wrapper(model, X_train[val_idx], lib, task, num_class)
@@ -250,6 +290,11 @@ def train_cv(
         A.save_array(run_dir, "oof_pred.npy", oof_pred)
         if X_test is not None:
             A.save_array(run_dir, "test_pred.npy", test_pred)
+
+    if verbose:
+        print(f"[gbdt.train_cv] fold_scores={fold_scores}")
+        print(f"[gbdt.train_cv] CV mean={cv_mean:.4f}, std={cv_std:.4f}")
+        print(f"[gbdt.train_cv] artifacts saved to {run_dir}")
 
     return ModelRun(
         run_id=run_id,

@@ -80,8 +80,14 @@ def train_cv(
     n_jobs: int = 4,
     save: bool = True,
     resume: bool = True,
+    show_progress: bool = False,
+    verbose: bool = False,
 ) -> ModelRun:
-    """OVR/BR для multi*, калибровка НЕ входит (отдельный модуль)."""
+    """OVR/BR для multi*, калибровка НЕ входит (отдельный модуль).
+
+    show_progress управляет выводом прогресс-бара по фолдам, verbose — подробными логами
+    и уведомлениями о сохранении.
+    """
 
     task = task.lower()
     params = dict(params or {})
@@ -112,9 +118,29 @@ def train_cv(
         "folds": len(folds),
     }
 
-    for k, (tr_idx, val_idx) in enumerate(folds):
+    total_folds = len(folds)
+    if verbose:
+        print(
+            f"[linear.train_cv] algo={algo}, task={task}, run_id={run_id}, "
+            f"folds={total_folds}, resume={resume}"
+        )
+        print(f"[linear.train_cv] params={params}")
+
+    fold_iterable = folds
+    if show_progress:
+        try:
+            from tqdm.auto import tqdm  # type: ignore
+
+            fold_iterable = tqdm(folds, total=total_folds, desc="linear CV")
+        except ImportError:
+            if verbose:
+                print("[linear.train_cv] tqdm is not installed; progress bar disabled")
+
+    for k, (tr_idx, val_idx) in enumerate(fold_iterable):
         fold_path = A.fold_path(run_dir, k, ".joblib")
         if resume and k in existing and fold_path.exists():
+            if verbose:
+                print(f"[linear.train_cv] loading fold {k} from {fold_path}")
             model = joblib.load(fold_path)
         else:
             base_estimator = _get_estimator(task, algo, params, seed)
@@ -124,12 +150,20 @@ def train_cv(
                 model = base_estimator
             if hasattr(model, "set_params"):
                 model.set_params(**{"n_jobs": n_jobs}) if task != "regression" else None
+            if verbose:
+                print(
+                    f"[linear.train_cv] Fold {k + 1}/{total_folds}: "
+                    f"train={len(tr_idx)}, val={len(val_idx)}"
+                )
             model.fit(X_train[tr_idx], y[tr_idx])
             if save:
                 joblib.dump(model, fold_path)
 
         val_pred = _predict(model, X_train[val_idx], task)
         oof_pred[val_idx] = val_pred
+
+        if verbose:
+            print(f"[linear.train_cv] Fold {k + 1}/{total_folds} finished")
 
         if X_test is not None:
             test_pred += _predict(model, X_test, task) / len(folds)
@@ -148,6 +182,11 @@ def train_cv(
         A.save_array(run_dir, "oof_pred.npy", oof_pred)
         if X_test is not None:
             A.save_array(run_dir, "test_pred.npy", test_pred)
+
+    if verbose:
+        print(f"[linear.train_cv] fold_scores={fold_scores}")
+        print(f"[linear.train_cv] CV mean={cv_mean:.4f}, std={cv_std:.4f}")
+        print(f"[linear.train_cv] artifacts saved to {run_dir}")
 
     return ModelRun(
         run_id=run_id,
