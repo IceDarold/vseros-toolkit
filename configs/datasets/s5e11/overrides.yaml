@@ -1,0 +1,15 @@
+paths:
+  data: "data/s5e11"
+recsys:
+  schema:
+    interactions:
+      user_id: uid
+      item_id: sku
+      ts: timestamp
+      session_id: sid
+    items:
+      item_id: sku
+  dataio:
+    sessionize:
+      enable: true
+      session_gap_min: 45

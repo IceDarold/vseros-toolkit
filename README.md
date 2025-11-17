@@ -30,3 +30,13 @@ tau = thresholds.find_global_tau(run_bl.oof_true, oof_prob_cal, scorer)
 test_prob_cal = calibration.apply(cal, run_bl.test_pred)
 # далее — τ или top-K в 04_eval_post
 ```
+
+## Configs
+
+Система конфигураций собрана слоями (`configs/core` → `configs/recsys` → `configs/datasets/<id>` → overrides/env/CLI) с глубокой мердж-логикой и валидацией через JSONSchema.
+
+* Быстрый просмотр резолв-конфига: `python tools/config_show.py --subsystem recsys --profile scout --dataset_id s5e11 --section recsys.candidates`.
+* Линт с валидацией: `python tools/config_lint.py --subsystem recsys --profile gate --dataset_id s5e11`.
+* Хеш настроек (fingerprint) для артефактов/кэша: `python tools/config_fingerprint.py --subsystem recsys --profile full`.
+
+Слои и приоритеты описаны в `configs/core/defaults.yaml`, профили лежат в `configs/recsys/profiles/`, а датасетные переопределения — в `configs/datasets/<dataset_id>/`.
