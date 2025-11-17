@@ -20,6 +20,7 @@ dependencies = [
     "sentence-transformers",
     "faiss-cpu",
     "pyarrow",
+    "jsonschema",
 ]
 
 [project.optional-dependencies]

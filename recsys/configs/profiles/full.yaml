@@ -20,3 +20,16 @@ cutoff: auto
 use_heavy_models: true
 random_seed: 42
 jobs: -1
+features:
+  blocks:
+    cross:
+      enabled: true
+dataio:
+  queries:
+    limit_per_split: null
+  pairs:
+    neg_pos_ratio: 100
+    similarity:
+      enabled: true
+    sequence:
+      last_k: [5, 15]

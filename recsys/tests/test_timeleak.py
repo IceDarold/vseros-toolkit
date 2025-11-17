@@ -13,7 +13,7 @@ def test_covis_respects_cutoff():
         path_items="recsys/tests/fixtures/tiny_items.csv",
         path_queries="recsys/tests/fixtures/tiny_queries.csv",
     )
-    cutoff = pd.Timestamp("2024-01-02")
+    cutoff = pd.Timestamp("2024-01-02", tz="UTC")
     gen = CoVisGenerator()
     gen.fit(data.interactions, data.items, cutoff_ts=cutoff, schema=schema, rng=None)
     filtered = data.interactions[data.interactions["ts"] <= cutoff]
