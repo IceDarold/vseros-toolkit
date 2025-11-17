@@ -68,7 +68,7 @@ def _encode_batch(
     except TypeError:
         vecs = emb_model.encode(list(texts))
 
-    arr = __numpy(vecs)
+    arr = ensure_numpy(vecs)
 
     if arr.ndim == 1:
         arr = arr.reshape(1, -1)
