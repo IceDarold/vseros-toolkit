@@ -1,6 +1,6 @@
 from .assemble import make_dense, make_sparse
 from .store import FeatureStore
-from . import num_basic
+from . import cat_freq, num_basic
 from .types import FeaturePackage, Kind
 
 __all__ = [
@@ -8,6 +8,7 @@ __all__ = [
     "Kind",
     "FeatureStore",
     "num_basic",
+    "cat_freq",
     "make_dense",
     "make_sparse",
 ]
