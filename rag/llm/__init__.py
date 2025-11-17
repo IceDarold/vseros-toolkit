@@ -14,7 +14,7 @@ from .prompts import (
     TIMELINE_PROMPT,
 )
 from .transformers import TransformersLLMClient
-from .vllm_backend import VLLMLLMClient
+# from .vllm_backend import VLLMLLMClient
 
 __all__ = [
     "LLMClient",
@@ -34,5 +34,5 @@ __all__ = [
     "QUERY_SUMMARY_WITH_CITATIONS_PROMPT",
     "TIMELINE_PROMPT",
     "TransformersLLMClient",
-    "VLLMLLMClient",
+    # "VLLMLLMClient",
 ]
