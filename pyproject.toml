@@ -41,10 +41,12 @@ where = ["."]
 include = [
     "common",
     "common.*",
-    "rag",
-    "rag.*",
-    "tabular",
-    "tabular.*",
-    "recsys",
+    "rag", 
+    "rag.*", 
+    "rag.llm", 
+    "rag.llm.*", 
+    "tabular", 
+    "tabular.*", 
+    "recsys", 
     "recsys.*",
 ]
